@@ -233,12 +233,14 @@ int main(int argc, char *argv[]) {
         if (config.send_notifications) {
           system(("notify-send '" + config.notification_title_break + "' '" + config.relax_message + "'").c_str());
         }
-        cout << config.relax_message << " 🟢" << endl;
+        cout << "<span color='" + config.text_color + "' bgcolor='" + config.break_color  + "'> " + config.relax_message + " </span>"
+             << endl;
       } else {
         if (config.send_notifications) {
           system(("notify-send '" + config.notification_title_work + "' '" + config.back_to_work_message + "'").c_str());
         }
-        cout << config.back_to_work_message << " 🔴" << endl;
+        cout << "<span color='" + config.text_color + "' bgcolor='" + config.work_color + "'> " + config.back_to_work_message + " </span>"
+             << endl;
       }
     }
     return 0;
