@@ -76,6 +76,7 @@ struct Config {
     string notification_title_break = "Tomaten 🟢";
     string notification_title_work = "Tomaten 🔴";
     bool send_notifications = true;
+    int daily_goal = 8;
 };
 
 Config load_config() {
@@ -125,6 +126,10 @@ Config load_config() {
         if (config_json.contains("send_notifications")) {
             config.send_notifications = config_json["send_notifications"];
         }
+        
+        if (config_json.contains("daily_goal")) {
+            config.daily_goal = config_json["daily_goal"];
+        }
     } catch (...) {
         // If JSON parsing fails, return default config
     }
@@ -164,6 +169,51 @@ string time_string(int seconds_left) {
   return ss.str();
 }
 
+string get_today_date() {
+  time_t now = time(nullptr);
+  struct tm *tm_info = localtime(&now);
+  char buffer[11];
+  strftime(buffer, 11, "%Y-%m-%d", tm_info);
+  return string(buffer);
+}
+
+int count_todays_pomodoros() {
+  ifstream infile(ARCHIVE_FILE);
+  if (!infile.is_open()) {
+    return 0;
+  }
+  
+  json archive;
+  if (infile.peek() == ifstream::traits_type::eof()) {
+    return 0;
+  }
+  
+  infile >> archive;
+  infile.close();
+  
+  if (!archive.contains("entries") || !archive["entries"].is_array()) {
+    return 0;
+  }
+  
+  string today = get_today_date();
+  int count = 0;
+  
+  for (const auto& entry : archive["entries"]) {
+    if (entry["type"] == "pomodoro" && entry.contains("end")) {
+      time_t start_time = entry["start"];
+      struct tm *tm_info = localtime(&start_time);
+      char date_buffer[11];
+      strftime(date_buffer, 11, "%Y-%m-%d", tm_info);
+      
+      if (string(date_buffer) == today) {
+        count++;
+      }
+    }
+  }
+  
+  return count;
+}
+
 int main(int argc, char *argv[]) {
 
   ensure_data_directory();
@@ -181,7 +231,7 @@ int main(int argc, char *argv[]) {
     action = argv[1];
   } else {
     cout << "Usage: pomodoro <action> [duration_minutes]" << endl;
-    cout << "Available actions:\nstatus, pomodoro, break, finish, clear"
+    cout << "Available actions:\nstatus, pomodoro, break, finish, clear, daily-goal-status"
          << endl;
     return 1;
   }
@@ -243,6 +293,24 @@ int main(int argc, char *argv[]) {
              << endl;
       }
     }
+    return 0;
+  }
+
+  if (action == "daily-goal-status") {
+    int completed = count_todays_pomodoros();
+    int goal = config.daily_goal;
+    
+    string output = "[";
+    for (int i = 0; i < goal; i++) {
+      if (i < completed) {
+        output += "<span color='" + config.text_color + "' bgcolor='" + config.work_color + "'> </span>";
+      } else {
+        output += " ";
+      }
+    }
+    output += "]";
+    
+    cout << output << endl;
     return 0;
   }
 
