@@ -73,8 +73,8 @@ struct Config {
     string text_color = "#ebdbb2";
     string relax_message = "Relax!";
     string back_to_work_message = "Back to work!";
-    string notification_title_break = "Tomaten 🟢";
-    string notification_title_work = "Tomaten 🔴";
+    string notification_title_break = "Tomaten";
+    string notification_title_work = "Tomaten";
     bool send_notifications = true;
     int daily_goal = 8;
 };
@@ -177,41 +177,48 @@ string get_today_date() {
   return string(buffer);
 }
 
-int count_todays_pomodoros() {
-  ifstream infile(ARCHIVE_FILE);
-  if (!infile.is_open()) {
-    return 0;
-  }
-  
-  json archive;
-  if (infile.peek() == ifstream::traits_type::eof()) {
-    return 0;
-  }
-  
-  infile >> archive;
-  infile.close();
-  
-  if (!archive.contains("entries") || !archive["entries"].is_array()) {
-    return 0;
-  }
-  
-  string today = get_today_date();
-  int count = 0;
-  
-  for (const auto& entry : archive["entries"]) {
-    if (entry["type"] == "pomodoro" && entry.contains("end")) {
-      time_t start_time = entry["start"];
-      struct tm *tm_info = localtime(&start_time);
-      char date_buffer[11];
-      strftime(date_buffer, 11, "%Y-%m-%d", tm_info);
-      
-      if (string(date_buffer) == today) {
-        count++;
-      }
+int count_todays_tomater() {
+    string today = get_today_date();
+    int count = 0;
+    
+    ifstream infile_archive(ARCHIVE_FILE);
+    if (infile_archive.is_open() && infile_archive.peek() != ifstream::traits_type::eof()) {
+        json archive;
+        infile_archive >> archive;
+        if (archive.contains("entries") && archive["entries"].is_array()) {
+            for (const auto& entry : archive["entries"]) {
+                if (entry["type"] == "tomat" && entry.contains("start")) {
+                    time_t start_time = entry["start"];
+                    struct tm *tm_info = localtime(&start_time);
+                    char date_buffer[11];
+                    strftime(date_buffer, 11, "%Y-%m-%d", tm_info);
+                    if (string(date_buffer) == today) {
+                        count++;
+                    }
+                }
+            }
+        }
     }
-  }
-  
-  return count;
+    infile_archive.close();
+
+    ifstream infile_current(CURRENT_FILE);
+    if (infile_current.is_open() && infile_current.peek() != ifstream::traits_type::eof()) {
+        json j;
+        infile_current >> j;
+        json &active_entry = j["entry"];
+        if (active_entry["type"] == "tomat" && active_entry.contains("end")) {
+            time_t start_time = active_entry["start"];
+            struct tm *tm_info = localtime(&start_time);
+            char date_buffer[11];
+            strftime(date_buffer, 11, "%Y-%m-%d", tm_info);
+            if (string(date_buffer) == today) {
+                count++;
+            }
+        }
+    }
+    infile_current.close();
+    
+    return count;
 }
 
 int main(int argc, char *argv[]) {
@@ -230,8 +237,8 @@ int main(int argc, char *argv[]) {
   } else if (argc == 2) {
     action = argv[1];
   } else {
-    cout << "Usage: pomodoro <action> [duration_minutes]" << endl;
-    cout << "Available actions:\nstatus, pomodoro, break, finish, clear, daily-goal-status"
+    cout << "Usage: tomaten <action> [duration_minutes]" << endl;
+    cout << "Available actions:\nstatus, start, break, finish, clear, daily-goal-status"
          << endl;
     return 1;
   }
@@ -258,7 +265,7 @@ int main(int argc, char *argv[]) {
     int time_left = end_time - now;
 
     if (active_entry.contains("end")) {
-      if (active_entry["type"] == "pomodoro") {
+      if (active_entry["type"] == "tomat") {
         cout << "<span color='" + config.text_color + "' bgcolor='" + config.break_color  + "'> " + config.relax_message + " </span>"
              << endl;
 
@@ -270,7 +277,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (time_left > 0) {
-      string bgcolor = (active_entry["type"] == "pomodoro") ? config.work_color : config.break_color;
+      string bgcolor = (active_entry["type"] == "tomat") ? config.work_color : config.break_color;
       int seconds_left = time_left % 60;
       string text = to_string(time_left / 60) + ":" + time_string(seconds_left);
       cout << "<span color='" + config.text_color + "' bgcolor='" + bgcolor + "'> " + text + " </span>"
@@ -279,7 +286,7 @@ int main(int argc, char *argv[]) {
       active_entry["end"] = end_time;
       write_current(active_entry);
 
-      if (active_entry["type"] == "pomodoro") {
+      if (active_entry["type"] == "tomat") {
         if (config.send_notifications) {
           system(("notify-send '" + config.notification_title_break + "' '" + config.relax_message + "'").c_str());
         }
@@ -297,7 +304,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (action == "daily-goal-status") {
-    int completed = count_todays_pomodoros();
+    int completed = count_todays_tomater();
     int goal = config.daily_goal;
     
     string output = "[";
@@ -314,12 +321,12 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (action == "pomodoro" || action == "break") {
+  if (action == "start" || action == "break") {
     if (active_entry["type"] != "naught" && active_entry.contains("end")) {
       archive_entry(active_entry);
     }
     json new_entry;
-    new_entry["type"] = action;
+    new_entry["type"] = (action == "start") ? "tomat" : "break";
     new_entry["start"] = now;
     new_entry["duration"] = duration;
     write_current(new_entry);
